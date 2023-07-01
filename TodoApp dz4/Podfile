@@ -1,0 +1,11 @@
+platform :ios, '14.0'
+
+target 'TodoApp' do
+  use_frameworks!
+
+  # Pods for TodoApp
+  
+  pod 'SwiftLint'
+
+
+end
