@@ -1,4 +1,4 @@
-
+// swiftlint:disable all
 import UIKit
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
