@@ -1,63 +1,68 @@
 import UIKit
 
-class ItemViewController: UIViewController, UITextViewDelegate {
-    
-    // метод подгружвет существующуу задачу из файла для вывода на экран
-    func cachedItem(){
-        do
-        {
-            try fileCache.loadData(.json, "todoItemsData")
-        } catch {
-            print ("ошибка кешированной задачи")
-        }
-        if (fileCache.todoItems.count != 0) {
-            var item = fileCache.todoItems[0]
-            placeholderText.isHidden = true
-            itemText.text = item.text
-            priorityBar.selectedSegmentIndex = 1
-            if item.priority == .minor {
-                priorityBar.selectedSegmentIndex = 0
-            } else {
-                if item.priority == .major {
-                    priorityBar.selectedSegmentIndex = 2
-                }
-            }
-            if item.deadline != nil {
-                deadlineButton.setTitle(dateForDisplay(item.deadline!), for: .normal)
-                deadlineSwitch.isOn = true
-                deadlineButton.isHidden = false
-                deadlineLabel.textColor = .clear
-                deadlineLabel2.isHidden = false
-                deadlineSelecor.date = dateForPicker(item.deadline!)
-            } else {
-                deadlineSwitch.isOn = false
-            }
-            saveButton.isEnabled = true
-            deleteButton.isEnabled = true
-        } else {
-            defaultScreen()
-        }
+class ItemViewController: UIViewController, UITextViewDelegate, EditionDelegate {
+    func itemToEdit(item: TodoItem) {
+        itemToDisplay = item
     }
     
+    public var callbackClosure: (() -> Void)?
+    override func viewWillDisappear(_ animated: Bool) {
+        callbackClosure?()
+    }
+    var itemToDisplay : TodoItem?
+    var delegateee: DismissionDelegate?
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        itemText.delegate = self
-        itemText.contentInset = UIEdgeInsets(top: 8.0, left: 12.0, bottom: 8.0, right: 12.0);
-        deadlineSelecor.addTarget(self, action: #selector(pickerHandler), for: .valueChanged)
-        deadlineSelecor.minimumDate = Date()
-        let tapGesture = UITapGestureRecognizer(target: view, action: #selector(UIView.endEditing))
-         view.addGestureRecognizer(tapGesture)
-        tapGesture.cancelsTouchesInView = false
+        if itemToDisplay != nil {
+            displayEditItem(item: itemToDisplay!)
+            
+        }
+            wasTouched = false
+            itemText.delegate = self
+            itemText.contentInset = UIEdgeInsets(top: 8.0, left: 12.0, bottom: 8.0, right: 12.0)
+            deadlineSelecor.addTarget(self, action: #selector(pickerHandler), for: .valueChanged)
+            deadlineSelecor.minimumDate = Date()
+            let tapGesture = UITapGestureRecognizer(target: view, action: #selector(UIView.endEditing))
+            view.addGestureRecognizer(tapGesture)
+            tapGesture.cancelsTouchesInView = false
             settingsBottomConstraint.constant = 80
             deadlineLabel2.isHidden = true
-        cachedItem()
-
+        
     }
-    var fileCache = FileCache()
-    
+    func displayEditItem (item: TodoItem) {
+        wasTouched = false
+        itemText.text = item.text
+        placeholderText.isHidden = true
+        priorityBar.selectedSegmentIndex = 1
+        if item.priority.rawValue == "важная" {
+            priorityBar.selectedSegmentIndex = 2
+        } else {
+            if item.priority.rawValue == "неважная" {
+                priorityBar.selectedSegmentIndex = 0
+            }
+        }
+        if item.deadline != nil {
+            deadlineButton.isHidden = false
+            deadlineLabel.textColor = .clear
+            deadlineLabel2.isHidden = false
+            let date = Int(item.deadline!)
+            let dateString = dateForDisplay(date)
+            let datePicker = dateForPicker(date)
+            deadlineLabel.textColor = .clear
+            deadlineButton.isHidden = false
+            deadlineButton.setTitle(dateString, for: .normal)
+            deadlineLabel2.isHidden = false
+            deadlineSwitch.isOn = true
+            deadlineSelecor.setDate(datePicker, animated: true)
+        } else {
+            deadlineSwitch.isOn = false
+            deadlineLabel2.isHidden = true
+            deadlineLabel.textColor = .black
+        }
+    }
     // метод позволяет выбрать дату дедлайна на календаре и после выбора даты убирает календарь
     @objc func pickerHandler (_ picker: UIDatePicker) {
-        print(picker.date)
         deadlineButton.setTitle(dateConverter(picker.date), for: .normal)
         deadlineSelecor.isHidden = true
         borderLine.isHidden = true
@@ -67,6 +72,7 @@ class ItemViewController: UIViewController, UITextViewDelegate {
     // методы редактирования текста задачи
     func textViewDidBeginEditing(_ textView: UITextView) {
         if itemText.isFirstResponder == true {
+            wasTouched = true
             placeholderText.isHidden = true
             saveButton.isEnabled = true
             deleteButton.isEnabled = true
@@ -74,19 +80,28 @@ class ItemViewController: UIViewController, UITextViewDelegate {
    }
     func textViewDidEndEditing(_ textView: UITextView) {
         if itemText.text.isEmpty {
+            wasTouched = false
             placeholderText.isHidden = false
             saveButton.isEnabled = false
+            deleteButton.isEnabled = false
+        }
+    }
+    @IBAction func priorityGotChanged(_ sender: Any) {
+        wasTouched = true
+        if itemText.hasText {
+            saveButton.isEnabled = true
             deleteButton.isEnabled = true
         }
     }
-    
-    @IBOutlet weak var deadlineLabel: UILabel!
-    @IBOutlet weak var deadlineButton: UIButton!
-    
     // метод показывает календарь при нажатии на дату под лейблом "Сделать до" и убирает календарь при повторном нажатии
     @IBAction func deadlineButton(_ sender: UIButton) {
-        sender.isSelected.toggle();
+        sender.isSelected.toggle()
             if sender.isSelected {
+                wasTouched = true
+                if itemText.hasText {
+                    saveButton.isEnabled = true
+                    deleteButton.isEnabled = true
+                }
                 deadlineSelecor.isHidden = false
                 borderLine.isHidden = false
                 settingsBottonConstraint2.constant = 0
@@ -98,6 +113,8 @@ class ItemViewController: UIViewController, UITextViewDelegate {
                 settingsBottonConstraint2.constant = 16
             }
     }
+    @IBOutlet weak var deadlineLabel: UILabel!
+    @IBOutlet weak var deadlineButton: UIButton!
     @IBOutlet weak var priorityBar: UISegmentedControl!
     @IBOutlet weak var deadlineSwitch: UISwitch!
     @IBOutlet weak var placeholderText: UILabel!
@@ -109,27 +126,42 @@ class ItemViewController: UIViewController, UITextViewDelegate {
     @IBOutlet weak var deadlineLabel2: UILabel!
     @IBOutlet var settingsBottonConstraint2: NSLayoutConstraint!
     @IBOutlet var settingsBottomConstraint: NSLayoutConstraint!
+    var wasTouched = false
     
-    // сохраняет настройки задания на дисплее
+    // метод сохраняет настройки задания на дисплее
     @IBAction func saveButtonPressed(_ sender: UIButton) {
+        
         var priority = TodoItem.Priority.common
-        switch priorityBar.selectedSegmentIndex
-           {
-           case 0:
-            priority = .minor;
-           case 2:
-            priority = .major;
-           default:
-               break;
+        switch priorityBar.selectedSegmentIndex {
+        case 0:
+            priority = .minor
+        case 2:
+            priority = .major
+        default:
+               break
            }
         var dateCheck: Int?
         if deadlineSwitch.isOn {
              dateCheck = dateInt(deadlineSelecor.date)
         }
-        let item = TodoItem(id: UUID().uuidString, text: itemText.text, priority: priority, deadline: dateCheck , done: false, whenCreated: dateInt(Date()), whenEdited: 0)
-        fileCache.deleteCache()
-        fileCache.addItem(newItem: item)
-        fileCache.saveData(.json, "todoItemsData")
+        var newID = UUID().uuidString
+        if itemToDisplay != nil {
+            newID = itemToDisplay!.id
+        }
+        let item = TodoItem(
+            id: newID,
+            text: itemText.text,
+            priority: priority,
+            deadline: dateCheck,
+            done: false,
+            whenCreated: dateInt(Date()),
+            whenEdited: 0)
+        self.delegateee?.addCD(itemToAdd: item)
+//        self.delegateee?.saveCD()
+//        self.delegateee?.save("json", "todoItemsData")
+        self.dismiss(animated: true) {
+            
+        }
     }
     // методы преобразования формата Date
     func dateInt (_ date: Date ) -> Int {
@@ -161,7 +193,6 @@ class ItemViewController: UIViewController, UITextViewDelegate {
         let dateFormated = try? Date(dateSample, strategy: strategy)
         return dateFormated ?? Date()
     }
-    
     // метод возвращает к начальным измененные экранные значения
     func defaultScreen() {
         itemText.text = ""
@@ -179,17 +210,19 @@ class ItemViewController: UIViewController, UITextViewDelegate {
         settingsBottomConstraint.constant = 440
         settingsBottonConstraint2.constant = 16
     }
-    
     // метод добавляет дату - кнопку под лейблом "Сделать до" и скрывает календарь при выключении
     @IBAction func deadlineButtonPressed(_ sender: UISwitch) {
+        if itemText.hasText {
+            saveButton.isEnabled = true
+            deleteButton.isEnabled = true
+        }
         if sender.isOn {
             deadlineButton.isHidden = false
             deadlineLabel.textColor = .clear
             deadlineLabel2.isHidden = false
             let defaultDate = dateConverter(Date())
             let day = Int(defaultDate.prefix(2))
-            deadlineButton.setTitle(((String(day! + 1)+defaultDate.dropFirst(2))), for: .normal)
-            
+            deadlineButton.setTitle(((String((day ?? 0) + 1)+defaultDate.dropFirst(2))), for: .normal)
         } else {
             deadlineSelecor.date = Date()
             deadlineLabel2.isHidden = true
@@ -201,24 +234,27 @@ class ItemViewController: UIViewController, UITextViewDelegate {
             settingsBottonConstraint2.constant = 16
         }
     }
-    
     // метод отменяет несохареннные все изменения проведенные пользователем после загруз задания/сохранения
     @IBAction func cancelButtonPressed(_ sender: UIButton) {
-        fileCache.deleteCache()
-        do
-        {
-            try fileCache.loadData(.json, "todoItemsData")
-        } catch {
-            print ("ошибка загрузкииии")
+        if wasTouched {
+            if itemToDisplay == nil {
+                defaultScreen()
+                wasTouched = false
+            } else {
+                displayEditItem(item: itemToDisplay!)
+            }
+        } else {
+            self.dismiss(animated: true) {
+                self.itemToDisplay = nil
+            }
         }
-        cachedItem()
     }
-    
     // метод удаляет задание
     @IBAction func deleteButtonPressed(_ sender: UIButton) {
-        fileCache.deleteCache()
-        fileCache.saveData(.json, "todoItemsData")
-        defaultScreen()
+//        self.delegateee?.save("json", "todoItemsData")
+        self.delegateee?.saveCD()
+        self.dismiss(animated: true) {
+            self.itemToDisplay = nil
+        }
     }
 }
-    
